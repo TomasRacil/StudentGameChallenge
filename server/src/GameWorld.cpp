@@ -46,12 +46,13 @@ void GameWorld::generateMaze() {
     generateMazeDFS(1, 1);
 
     // Carve out random open rooms
-    int numRooms = 15;
+    int numRooms = 5;
     for (int i = 0; i < numRooms; ++i) {
-        int rx = 2 + std::rand() % (m_width - 8);
-        int ry = 2 + std::rand() % (m_height - 8);
-        int roomWidth = 4 + std::rand() % 4; // 4 to 7
-        int roomHeight = 4 + std::rand() % 4;
+        int roomWidth = 3 + std::rand() % 3; // 3 to 5
+        int roomHeight = 3 + std::rand() % 3; // 3 to 5
+        if (m_width - 2 - roomWidth < 2 || m_height - 2 - roomHeight < 2) continue;
+        int rx = 2 + std::rand() % (m_width - 2 - roomWidth);
+        int ry = 2 + std::rand() % (m_height - 2 - roomHeight);
         
         for (int y = ry; y < ry + roomHeight; ++y) {
             for (int x = rx; x < rx + roomWidth; ++x) {
@@ -60,10 +61,12 @@ void GameWorld::generateMaze() {
         }
     }
 
-    // Clear top-left corner for safe spawn zone
-    m_grid[1 + 1 * m_width] = false;
-    m_grid[2 + 1 * m_width] = false;
-    m_grid[1 + 2 * m_width] = false;
+    // Clear top-left corner for safe spawn zone (3x3 open room)
+    for (int y = 1; y <= 3; ++y) {
+        for (int x = 1; x <= 3; ++x) {
+            m_grid[x + y * m_width] = false;
+        }
+    }
 
     // Place Exit in bottom-right area
     m_exit.type = EntityType::Exit;
@@ -92,11 +95,21 @@ void GameWorld::resetPlayers() {
 
 void GameWorld::respawnPlayer(sf::Uint32 id) {
     if (m_players.find(id) != m_players.end()) {
-        m_players[id].position = sf::Vector2f(m_tileSize * 1.5f, m_tileSize * 1.5f);
+        // Spawn randomly in the 3x3 top-left room (tiles x: 1..3, y: 1..3)
+        int rx = 1 + std::rand() % 3;
+        int ry = 1 + std::rand() % 3;
+        float spawnX = rx * m_tileSize + m_tileSize / 2.0f;
+        float spawnY = ry * m_tileSize + m_tileSize / 2.0f;
+
+        float offsetX = static_cast<float>(std::rand() % 20 - 10) * 0.8f; // -8.0f to 8.0f
+        float offsetY = static_cast<float>(std::rand() % 20 - 10) * 0.8f;
+        
+        m_players[id].position = sf::Vector2f(spawnX + offsetX, spawnY + offsetY);
         m_players[id].rotation = 0.0f;
         m_players[id].ammo = 0;
         m_players[id].health = 100.0f;
         m_players[id].currentAction = Action::None;
+        m_players[id].respawnTimer = 0.0f;
     }
 }
 
@@ -104,13 +117,29 @@ void GameWorld::addPlayer(sf::Uint32 id, const std::string& teamName) {
     PlayerData pd;
     pd.id = id;
     pd.teamName = teamName;
-    pd.position = sf::Vector2f(m_tileSize * 1.5f, m_tileSize * 1.5f);
+    
+    // Spawn randomly in the 3x3 top-left room (tiles x: 1..3, y: 1..3)
+    int rx = 1 + std::rand() % 3;
+    int ry = 1 + std::rand() % 3;
+    float spawnX = rx * m_tileSize + m_tileSize / 2.0f;
+    float spawnY = ry * m_tileSize + m_tileSize / 2.0f;
+
+    float offsetX = static_cast<float>(std::rand() % 20 - 10) * 0.8f;
+    float offsetY = static_cast<float>(std::rand() % 20 - 10) * 0.8f;
+    
+    pd.position = sf::Vector2f(spawnX + offsetX, spawnY + offsetY);
     pd.rotation = 0.0f;
     pd.ammo = 0;
     pd.health = 100.0f;
     pd.color = sf::Color(std::rand() % 200 + 55, std::rand() % 200 + 55, std::rand() % 200 + 55);
     pd.currentAction = Action::None;
+    
     m_players[id] = pd;
+    
+    if (m_teamScores.find(teamName) == m_teamScores.end()) {
+        m_teamScores[teamName] = 0.0f;
+    }
+    
     std::cout << "Player " << id << " (" << teamName << ") added.\n";
 }
 
@@ -132,15 +161,46 @@ bool GameWorld::checkExitReached(sf::Uint32 id) const {
 }
 
 bool GameWorld::checkCollision(sf::Vector2f pos) const {
-    int tx = static_cast<int>(pos.x / m_tileSize);
-    int ty = static_cast<int>(pos.y / m_tileSize);
-    if (tx < 0 || tx >= m_width || ty < 0 || ty >= m_height) return true;
-    return m_grid[tx + ty * m_width];
+    const float R = 10.0f; // Player radius
+    int cx = static_cast<int>(pos.x / m_tileSize);
+    int cy = static_cast<int>(pos.y / m_tileSize);
+
+    for (int y = cy - 1; y <= cy + 1; ++y) {
+        for (int x = cx - 1; x <= cx + 1; ++x) {
+            if (x < 0 || x >= m_width || y < 0 || y >= m_height) {
+                // Treat out of bounds as collision
+                if (pos.x - R < 0 || pos.x + R >= m_width * m_tileSize ||
+                    pos.y - R < 0 || pos.y + R >= m_height * m_tileSize) {
+                    return true;
+                }
+                continue;
+            }
+            if (m_grid[x + y * m_width]) {
+                float minX = x * m_tileSize;
+                float maxX = (x + 1) * m_tileSize;
+                float minY = y * m_tileSize;
+                float maxY = (y + 1) * m_tileSize;
+
+                // Find closest point on AABB to circle center
+                float closestX = std::max(minX, std::min(pos.x, maxX));
+                float closestY = std::max(minY, std::min(pos.y, maxY));
+
+                float dx = pos.x - closestX;
+                float dy = pos.y - closestY;
+                float distSq = dx * dx + dy * dy;
+
+                if (distSq < R * R) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
 bool GameWorld::hasLineOfSight(sf::Vector2f a, sf::Vector2f b) const {
     float dist = Math::distance(a, b);
-    if (dist > m_tileSize * 10) return false; // Max vision range
+    if (dist < 0.1f) return true;
     
     sf::Vector2f dir = (b - a) / dist;
     float step = 5.0f; // Fine step
@@ -187,8 +247,15 @@ void GameWorld::update(float dt) {
     for (auto& pair : m_players) {
         PlayerData& p = pair.second;
         if (p.health <= 0) {
-            respawnPlayer(p.id);
-            continue; // Time penalty by respawning
+            if (p.respawnTimer <= 0.0f) {
+                p.respawnTimer = 3.0f; // 3 seconds respawn penalty
+                p.position = sf::Vector2f(-1000.0f, -1000.0f); // Hide off-screen
+            }
+            p.respawnTimer -= dt;
+            if (p.respawnTimer <= 0.0f) {
+                respawnPlayer(pair.first);
+            }
+            continue; 
         }
 
         sf::Vector2f dir = Math::getDirection(p.rotation);
@@ -222,11 +289,65 @@ void GameWorld::update(float dt) {
                 bullet.position = p.position + dir * 15.0f;
                 bullet.rotation = p.rotation;
                 m_bullets.push_back(bullet);
+                m_bulletShooter[bullet.id] = p.id;
             }
         }
         
         // Reset action
         p.currentAction = Action::None;
+    }
+
+    // Resolve player-player overlap
+    for (auto& pairA : m_players) {
+        for (auto& pairB : m_players) {
+            if (pairA.first != pairB.first) {
+                sf::Vector2f posA = pairA.second.position;
+                sf::Vector2f posB = pairB.second.position;
+                float dist = Math::distance(posA, posB);
+                if (dist < 22.0f) { // Soft distancing buffer (slightly larger than 2 * player_radius)
+                    float overlap = 22.0f - dist;
+                    sf::Vector2f pushDir;
+                    if (dist > 0.1f) {
+                        pushDir = (posA - posB) / dist;
+                    } else {
+                        // If perfectly overlapping, push in random direction
+                        float angle = static_cast<float>(std::rand() % 360) * 3.14159f / 180.0f;
+                        pushDir = sf::Vector2f(std::cos(angle), std::sin(angle));
+                    }
+
+                    // Try to push A and B by half the overlap each
+                    sf::Vector2f pushHalfA = pushDir * (overlap * 0.5f);
+                    sf::Vector2f pushHalfB = -pushDir * (overlap * 0.5f);
+
+                    bool movedA = false;
+                    bool movedB = false;
+
+                    if (!checkCollision(posA + pushHalfA)) {
+                        pairA.second.position = posA + pushHalfA;
+                        movedA = true;
+                    }
+                    if (!checkCollision(posB + pushHalfB)) {
+                        pairB.second.position = posB + pushHalfB;
+                        movedB = true;
+                    }
+
+                    // If A couldn't move (blocked by wall), B takes the full push to separate
+                    if (!movedA && movedB) {
+                        sf::Vector2f pushFullB = -pushDir * overlap;
+                        if (!checkCollision(posB + pushFullB)) {
+                            pairB.second.position = posB + pushFullB;
+                        }
+                    }
+                    // If B couldn't move (blocked by wall), A takes the full push to separate
+                    if (!movedB && movedA) {
+                        sf::Vector2f pushFullA = pushDir * overlap;
+                        if (!checkCollision(posA + pushFullA)) {
+                            pairA.second.position = posA + pushFullA;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Update bullets
@@ -241,15 +362,37 @@ void GameWorld::update(float dt) {
         }
 
         bool hit = false;
+        sf::Uint32 shooterId = 0;
+        sf::Uint32 victimId = 0;
+
         for (auto& pair : m_players) {
             if (Math::distance(it->position, pair.second.position) < 15.0f) {
                 pair.second.health -= 50.0f; // Survive only one bullet, second will kill them
                 hit = true;
+                victimId = pair.first;
+
+                auto shooterIt = m_bulletShooter.find(it->id);
+                if (shooterIt != m_bulletShooter.end()) {
+                    shooterId = shooterIt->second;
+                }
                 break;
             }
         }
 
         if (hit) {
+            // Pokud oběť zemřela, upravíme skóre
+            if (victimId != 0 && m_players[victimId].health <= 0) {
+                // Oběť ztratí 2 body
+                std::string victimTeam = m_players[victimId].teamName;
+                m_teamScores[victimTeam] -= 2.0f;
+
+                // Střelec získá 2 body (pokud to nebyla sebevražda)
+                if (shooterId != 0 && m_players.find(shooterId) != m_players.end() && shooterId != victimId) {
+                    std::string shooterTeam = m_players[shooterId].teamName;
+                    m_teamScores[shooterTeam] += 2.0f;
+                }
+            }
+            m_bulletShooter.erase(it->id);
             it = m_bullets.erase(it);
         } else {
             ++it;
@@ -267,23 +410,18 @@ VisibleState GameWorld::getVisibleStateFor(sf::Uint32 id) const {
     state.myPosition = p.position;
     state.myRotation = p.rotation;
 
-    // Visible walls
-    int tx = static_cast<int>(p.position.x / m_tileSize);
-    int ty = static_cast<int>(p.position.y / m_tileSize);
-    int radius = 6;
-    for (int y = ty - radius; y <= ty + radius; ++y) {
-        for (int x = tx - radius; x <= tx + radius; ++x) {
-            if (x >= 0 && x < m_width && y >= 0 && y < m_height) {
-                if (m_grid[x + y * m_width]) {
-                    sf::Vector2f center(x * m_tileSize + m_tileSize/2, y * m_tileSize + m_tileSize/2);
-                    if (hasLineOfSight(p.position, center)) {
-                        Entity wall;
-                        wall.type = EntityType::Wall;
-                        wall.id = 0;
-                        wall.position = center;
-                        wall.rotation = 0;
-                        state.entities.push_back(wall);
-                    }
+    // Visible walls (checking all walls in the grid since vision has no range limit)
+    for (int y = 0; y < m_height; ++y) {
+        for (int x = 0; x < m_width; ++x) {
+            if (m_grid[x + y * m_width]) {
+                sf::Vector2f center(x * m_tileSize + m_tileSize/2, y * m_tileSize + m_tileSize/2);
+                if (hasLineOfSight(p.position, center)) {
+                    Entity wall;
+                    wall.type = EntityType::Wall;
+                    wall.id = 0;
+                    wall.position = center;
+                    wall.rotation = 0;
+                    state.entities.push_back(wall);
                 }
             }
         }
@@ -482,4 +620,56 @@ void GameWorld::renderTeacherView(sf::RenderTarget& target) const {
             target.draw(nameText);
         }
     }
+
+    // Render Leaderboard on Teacher View (Server)
+    sf::View originalView = target.getView();
+    target.setView(target.getDefaultView());
+
+    if (hasFont) {
+        sf::RectangleShape panel(sf::Vector2f(240.0f, 220.0f));
+        panel.setPosition(540.0f, 20.0f);
+        panel.setFillColor(sf::Color(12, 15, 23, 210));
+        panel.setOutlineThickness(1.0f);
+        panel.setOutlineColor(sf::Color(0, 150, 255, 100));
+        target.draw(panel);
+
+        sf::Vertex techLines[] = {
+            sf::Vertex(sf::Vector2f(540.0f, 55.0f), sf::Color(0, 150, 255, 100)),
+            sf::Vertex(sf::Vector2f(780.0f, 55.0f), sf::Color(0, 150, 255, 100))
+        };
+        target.draw(techLines, 2, sf::Lines);
+
+        sf::Text panelHeader;
+        panelHeader.setFont(font);
+        panelHeader.setString("LEADERBOARD");
+        panelHeader.setCharacterSize(14);
+        panelHeader.setStyle(sf::Text::Bold);
+        panelHeader.setFillColor(sf::Color(0, 180, 255));
+        panelHeader.setPosition(555.0f, 28.0f);
+        target.draw(panelHeader);
+
+        // Sort scores descending
+        std::vector<std::pair<std::string, float>> sortedScores(m_teamScores.begin(), m_teamScores.end());
+        std::sort(sortedScores.begin(), sortedScores.end(), [](const auto& a, const auto& b) {
+            return a.second > b.second;
+        });
+
+        float scoreY = 65.0f;
+        for (const auto& score : sortedScores) {
+            if (scoreY > 215.0f) break;
+            
+            sf::Text scoreText;
+            scoreText.setFont(font);
+            scoreText.setCharacterSize(12);
+            scoreText.setFillColor(sf::Color(200, 220, 245));
+            scoreText.setPosition(555.0f, scoreY);
+
+            std::string scoreStr = score.first + ": " + std::to_string(static_cast<int>(score.second)) + " pts";
+            scoreText.setString(scoreStr);
+            target.draw(scoreText);
+            scoreY += 20.0f;
+        }
+    }
+
+    target.setView(originalView);
 }

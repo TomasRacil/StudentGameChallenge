@@ -12,22 +12,26 @@ public:
 
     void update(const VisibleState& state) override {
         m_state = state;
-        
-        // This is where students will write their logic.
-        // For example, they can check state.entities for enemies, ammo, and walls.
     }
 
     Action getAction() override {
-        // By default, we provide manual keyboard controls so students can playtest.
-        // They should replace this with automatic AI logic!
-        
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)) return Action::MoveForward;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)) return Action::MoveBackward;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) return Action::RotateLeft;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) return Action::RotateRight;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::E)) return Action::PickupAmmo;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space)) return Action::Shoot;
-        
+        // Tady budete implementovat svou logiku agenta!
+        // Nyní je agent ovládán pouze klávesnicí pro testovací účely.
+
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)) {
+            return Action::MoveForward;
+        } else if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)) {
+            return Action::MoveBackward;
+        } else if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) {
+            return Action::RotateLeft;
+        } else if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) {
+            return Action::RotateRight;
+        } else if (sf::Keyboard::isKeyPressed(sf::Keyboard::E)) {
+            return Action::PickupAmmo;
+        } else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space)) {
+            return Action::Shoot;
+        }
+
         return Action::None;
     }
 
@@ -36,7 +40,7 @@ private:
     std::string m_teamName;
 };
 
-// Factory function used by the client to get the student's agent
+// Tovární funkce, kterou klient používá k získání vašeho agenta
 Agent* createStudentAgent(const std::string& teamName) {
     return new MyAgent(teamName);
 }

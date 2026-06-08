@@ -10,8 +10,8 @@ Server::Server(unsigned short port) : m_window(sf::VideoMode(800, 800), "Teacher
     }
     m_socket.setBlocking(false);
     
-    // Scale the view to fit the 31x31 maze (1240x1240 units) into the 800x800 window
-    m_window.setView(sf::View(sf::FloatRect(0.0f, 0.0f, 1240.0f, 1240.0f)));
+    // Scale the view to fit the maze into the 800x800 window
+    m_window.setView(sf::View(sf::FloatRect(0.0f, 0.0f, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE)));
 }
 
 void Server::run() {
@@ -24,8 +24,32 @@ void Server::run() {
     while (m_window.isOpen()) {
         sf::Event event;
         while (m_window.pollEvent(event)) {
-            if (event.type == sf::Event::Closed)
+            if (event.type == sf::Event::Closed) {
                 m_window.close();
+            } else if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::R) {
+                    std::cout << "Restarting round (scores preserved, new maze generated)..." << std::endl;
+                    m_world.generateMaze();
+                    m_world.resetPlayers();
+                    m_state = ServerState::Lobby;
+                    m_roundTimer = 0.0f;
+                }
+            }
+        }
+
+        // Handle speed multiplier keys (1-4)
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num1) || sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad1)) {
+            m_speedMultiplier = 1;
+            m_window.setTitle("Teacher View - Server (Speed: 1x)");
+        } else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num2) || sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad2)) {
+            m_speedMultiplier = 2;
+            m_window.setTitle("Teacher View - Server (Speed: 2x)");
+        } else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num3) || sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad3)) {
+            m_speedMultiplier = 4;
+            m_window.setTitle("Teacher View - Server (Speed: 4x)");
+        } else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num4) || sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad4)) {
+            m_speedMultiplier = 8;
+            m_window.setTitle("Teacher View - Server (Speed: 8x)");
         }
 
         handlePackets();
@@ -36,37 +60,17 @@ void Server::run() {
 
         // State machine logic
         if (m_state == ServerState::Lobby) {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Enter)) {
+            static sf::Clock lobbyClock;
+            bool hasPlayers = !m_clientTeams.empty();
+            if (!hasPlayers) {
+                lobbyClock.restart();
+            }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Enter) || (hasPlayers && lobbyClock.getElapsedTime().asSeconds() > 3.0f)) {
                 std::cout << "Starting Match!" << std::endl;
                 m_world.generateMaze();
                 m_world.resetPlayers();
                 m_state = ServerState::Playing;
                 m_roundTimer = 0.0f;
-            }
-        } else if (m_state == ServerState::Playing) {
-            m_roundTimer += dt;
-            
-            // Check if anyone reached the exit
-            sf::Uint32 winnerId = 0;
-            for (const auto& pair : m_clientTeams) {
-                if (m_world.checkExitReached(pair.first)) {
-                    winnerId = pair.first;
-                    break;
-                }
-            }
-
-            if (winnerId != 0) {
-                std::string teamName = m_clientTeams[winnerId];
-                std::cout << "Team " << teamName << " reached the exit in " << m_roundTimer << " seconds!\n";
-                
-                // Update best time
-                float currentBest = m_teamBestTimes[teamName];
-                if (currentBest < 0.0f || m_roundTimer < currentBest) {
-                    m_teamBestTimes[teamName] = m_roundTimer;
-                }
-
-                m_state = ServerState::RoundEnd;
-                m_roundTimer = 5.0f; // Wait 5 seconds before going to lobby
             }
         } else if (m_state == ServerState::RoundEnd) {
             m_roundTimer -= dt;
@@ -78,7 +82,31 @@ void Server::run() {
         while (timeSinceLastUpdate > TimePerFrame) {
             timeSinceLastUpdate -= TimePerFrame;
             if (m_state == ServerState::Playing) {
-                m_world.update(TimePerFrame);
+                for (int i = 0; i < m_speedMultiplier; ++i) {
+                    m_world.update(TimePerFrame);
+                    m_roundTimer += TimePerFrame;
+
+                    // Check if anyone reached the exit
+                    sf::Uint32 winnerId = 0;
+                    for (const auto& pair : m_clientTeams) {
+                        if (m_world.checkExitReached(pair.first)) {
+                            winnerId = pair.first;
+                            break;
+                        }
+                    }
+
+                    if (winnerId != 0) {
+                        std::string teamName = m_clientTeams[winnerId];
+                        std::cout << "Team " << teamName << " reached the exit in " << m_roundTimer << " seconds!\n";
+                        
+                        // Update score: reaching the exit is for 10 points
+                        m_world.awardExitPoints(teamName);
+
+                        m_state = ServerState::RoundEnd;
+                        m_roundTimer = 5.0f; // Wait 5 seconds before going to lobby
+                        break; // Exit the speedMultiplier loop
+                    }
+                }
             }
         }
 
@@ -115,10 +143,6 @@ void Server::handlePackets() {
                 m_clientPorts[id] = port;
                 m_clientTeams[id] = teamName;
                 
-                if (m_teamBestTimes.find(teamName) == m_teamBestTimes.end()) {
-                    m_teamBestTimes[teamName] = -1.0f; // Initialize
-                }
-
                 m_world.addPlayer(id, teamName);
 
                 // Send welcome packet
@@ -164,8 +188,9 @@ void Server::sendUpdates() {
         packet << static_cast<sf::Uint8>(m_state);
         packet << m_roundTimer;
         
-        packet << static_cast<sf::Uint32>(m_teamBestTimes.size());
-        for (const auto& tp : m_teamBestTimes) {
+        const auto& teamScores = m_world.getTeamScores();
+        packet << static_cast<sf::Uint32>(teamScores.size());
+        for (const auto& tp : teamScores) {
             packet << tp.first << tp.second;
         }
 

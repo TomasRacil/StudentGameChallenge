@@ -5,6 +5,10 @@
 #include <cstdint>
 #include <string>
 
+const int MAP_WIDTH = 15;
+const int MAP_HEIGHT = 15;
+const float TILE_SIZE = 80.0f;
+
 enum class PacketType : sf::Uint8 {
     // Client -> Server
     Connect = 0,
@@ -60,7 +64,7 @@ inline sf::Packet& operator>>(sf::Packet& packet, Entity& entity) {
 
 struct TeamScore {
     std::string teamName;
-    float bestTime; // Lower is better. 0 or negative means hasn't reached exit.
+    float score; // Points accumulated.
 };
 
 struct VisibleState {

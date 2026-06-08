@@ -63,7 +63,7 @@ void Client::receivePackets() {
             packet >> scoreCount;
             for (sf::Uint32 i = 0; i < scoreCount; ++i) {
                 TeamScore ts;
-                packet >> ts.teamName >> ts.bestTime;
+                packet >> ts.teamName >> ts.score;
                 state.scoreboard.push_back(ts);
             }
 

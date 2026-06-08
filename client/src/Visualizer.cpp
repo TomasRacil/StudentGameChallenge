@@ -25,17 +25,17 @@ void Visualizer::render(sf::RenderTarget& target, const VisibleState& state) {
     float time = animClock.getElapsedTime().asSeconds();
 
     // Draw background grid lines
-    float startX = std::floor((state.myPosition.x - 400.0f) / 40.0f) * 40.0f;
-    float endX = startX + 840.0f;
-    float startY = std::floor((state.myPosition.y - 400.0f) / 40.0f) * 40.0f;
-    float endY = startY + 840.0f;
+    float startX = std::floor((state.myPosition.x - 400.0f) / TILE_SIZE) * TILE_SIZE;
+    float endX = startX + 800.0f + TILE_SIZE;
+    float startY = std::floor((state.myPosition.y - 400.0f) / TILE_SIZE) * TILE_SIZE;
+    float endY = startY + 800.0f + TILE_SIZE;
 
     sf::VertexArray gridLines(sf::Lines);
-    for (float x = startX; x <= endX; x += 40.0f) {
+    for (float x = startX; x <= endX; x += TILE_SIZE) {
         gridLines.append(sf::Vertex(sf::Vector2f(x, startY), sf::Color(25, 35, 55, 90)));
         gridLines.append(sf::Vertex(sf::Vector2f(x, endY), sf::Color(25, 35, 55, 90)));
     }
-    for (float y = startY; y <= endY; y += 40.0f) {
+    for (float y = startY; y <= endY; y += TILE_SIZE) {
         gridLines.append(sf::Vertex(sf::Vector2f(startX, y), sf::Color(25, 35, 55, 90)));
         gridLines.append(sf::Vertex(sf::Vector2f(endX, y), sf::Color(25, 35, 55, 90)));
     }
@@ -45,16 +45,16 @@ void Visualizer::render(sf::RenderTarget& target, const VisibleState& state) {
     for (const auto& e : state.entities) {
         if (e.type == EntityType::Wall) {
             // Draw a high-tech beveled wall
-            sf::RectangleShape wall(sf::Vector2f(38.0f, 38.0f));
-            wall.setOrigin(19.0f, 19.0f);
+            sf::RectangleShape wall(sf::Vector2f(TILE_SIZE - 2.0f, TILE_SIZE - 2.0f));
+            wall.setOrigin((TILE_SIZE - 2.0f) / 2.0f, (TILE_SIZE - 2.0f) / 2.0f);
             wall.setPosition(e.position);
             wall.setFillColor(sf::Color(15, 20, 30));
             wall.setOutlineThickness(1.5f);
             wall.setOutlineColor(sf::Color(0, 130, 220));
             target.draw(wall);
 
-            sf::RectangleShape innerPlate(sf::Vector2f(28.0f, 28.0f));
-            innerPlate.setOrigin(14.0f, 14.0f);
+            sf::RectangleShape innerPlate(sf::Vector2f(TILE_SIZE - 12.0f, TILE_SIZE - 12.0f));
+            innerPlate.setOrigin((TILE_SIZE - 12.0f) / 2.0f, (TILE_SIZE - 12.0f) / 2.0f);
             innerPlate.setPosition(e.position);
             innerPlate.setFillColor(sf::Color(24, 30, 42));
             innerPlate.setOutlineThickness(1.0f);
@@ -62,8 +62,8 @@ void Visualizer::render(sf::RenderTarget& target, const VisibleState& state) {
             target.draw(innerPlate);
 
             // Tech lines
-            sf::RectangleShape line(sf::Vector2f(16.0f, 2.0f));
-            line.setOrigin(8.0f, 1.0f);
+            sf::RectangleShape line(sf::Vector2f(TILE_SIZE * 0.4f, 2.0f));
+            line.setOrigin(TILE_SIZE * 0.2f, 1.0f);
             line.setPosition(e.position);
             line.setFillColor(sf::Color(0, 100, 180, 100));
             target.draw(line);
@@ -138,15 +138,15 @@ void Visualizer::render(sf::RenderTarget& target, const VisibleState& state) {
             target.draw(trail, 2, sf::Lines);
         } else if (e.type == EntityType::Exit) {
             // Exit portal - Green glow
-            sf::CircleShape glow(25.0f + 3.0f * std::sin(time * 4.0f));
+            sf::CircleShape glow(TILE_SIZE / 1.6f + 3.0f * std::sin(time * 4.0f));
             glow.setOrigin(glow.getRadius(), glow.getRadius());
             glow.setPosition(e.position);
             glow.setFillColor(sf::Color(0, 255, 100, 30));
             target.draw(glow);
 
             // Double rotating portal frames
-            sf::RectangleShape outerFrame(sf::Vector2f(34.0f, 34.0f));
-            outerFrame.setOrigin(17.0f, 17.0f);
+            sf::RectangleShape outerFrame(sf::Vector2f(TILE_SIZE - 6.0f, TILE_SIZE - 6.0f));
+            outerFrame.setOrigin(TILE_SIZE / 2.0f - 3.0f, TILE_SIZE / 2.0f - 3.0f);
             outerFrame.setPosition(e.position);
             outerFrame.setFillColor(sf::Color::Transparent);
             outerFrame.setOutlineThickness(2.0f);
@@ -154,8 +154,8 @@ void Visualizer::render(sf::RenderTarget& target, const VisibleState& state) {
             outerFrame.setRotation(time * 45.0f);
             target.draw(outerFrame);
 
-            sf::RectangleShape innerFrame(sf::Vector2f(22.0f, 22.0f));
-            innerFrame.setOrigin(11.0f, 11.0f);
+            sf::RectangleShape innerFrame(sf::Vector2f(TILE_SIZE - 18.0f, TILE_SIZE - 18.0f));
+            innerFrame.setOrigin(TILE_SIZE / 2.0f - 9.0f, TILE_SIZE / 2.0f - 9.0f);
             innerFrame.setPosition(e.position);
             innerFrame.setFillColor(sf::Color::Transparent);
             innerFrame.setOutlineThickness(1.5f);
@@ -203,18 +203,7 @@ void Visualizer::render(sf::RenderTarget& target, const VisibleState& state) {
     };
     target.draw(dirLine, 2, sf::Lines);
 
-    // Vignette Darkness Mask (Smooth Field of View blending)
-    sf::VertexArray vignette(sf::TriangleFan, 34);
-    vignette[0].position = state.myPosition;
-    vignette[0].color = sf::Color(10, 12, 18, 0); // Transparent at center
-    
-    const float fovRadius = 320.0f; // 8 tiles * 40.0f
-    for (int i = 0; i <= 32; ++i) {
-        float angle = i * (2.0f * 3.14159f / 32.0f);
-        vignette[i + 1].position = state.myPosition + sf::Vector2f(std::cos(angle), std::sin(angle)) * fovRadius;
-        vignette[i + 1].color = sf::Color(10, 12, 18, 255); // Matches background color at edges
-    }
-    target.draw(vignette);
+
 
     // Reset view for HUD rendering
     target.setView(target.getDefaultView());
@@ -277,9 +266,7 @@ void Visualizer::render(sf::RenderTarget& target, const VisibleState& state) {
             scoreText.setPosition(555.0f, scoreY);
 
             std::stringstream scoreSs;
-            scoreSs << score.teamName << ": ";
-            if (score.bestTime > 0.0f) scoreSs << score.bestTime << "s";
-            else scoreSs << "--";
+            scoreSs << score.teamName << ": " << static_cast<int>(score.score) << " pts";
             
             scoreText.setString(scoreSs.str());
             target.draw(scoreText);

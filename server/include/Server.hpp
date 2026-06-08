@@ -26,5 +26,5 @@ private:
 
     ServerState m_state = ServerState::Lobby;
     float m_roundTimer = 0.0f;
-    std::map<std::string, float> m_teamBestTimes; // Lowest time is best. 0 or negative = no time yet.
+    int m_speedMultiplier = 1;
 };

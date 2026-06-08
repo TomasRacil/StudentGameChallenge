@@ -13,6 +13,7 @@ struct PlayerData {
     float health;
     sf::Color color;
     Action currentAction;
+    float respawnTimer = 0.0f;
 };
 
 class GameWorld {
@@ -32,6 +33,14 @@ public:
     VisibleState getVisibleStateFor(sf::Uint32 id) const;
     void renderTeacherView(sf::RenderTarget& target) const;
 
+    const std::map<std::string, float>& getTeamScores() const { return m_teamScores; }
+    void awardExitPoints(const std::string& teamName) { m_teamScores[teamName] += 10.0f; }
+    void resetScores() {
+        for (auto& pair : m_teamScores) {
+            pair.second = 0.0f;
+        }
+    }
+
 private:
     void generateMazeDFS(int cx, int cy);
     bool checkCollision(sf::Vector2f pos) const;
@@ -45,8 +54,11 @@ private:
     sf::Uint32 m_nextEntityId = 1000;
 
     // Map grid (true = wall, false = empty)
-    int m_width = 31; // Odd numbers work best for DFS mazes
-    int m_height = 31;
+    int m_width = MAP_WIDTH; // Odd numbers work best for DFS mazes
+    int m_height = MAP_HEIGHT;
     std::vector<bool> m_grid;
-    float m_tileSize = 40.0f;
+    float m_tileSize = TILE_SIZE;
+
+    std::map<std::string, float> m_teamScores;
+    std::map<sf::Uint32, sf::Uint32> m_bulletShooter;
 };

@@ -8,7 +8,7 @@
 // Factory function implemented in MyAgent.cpp
 extern Agent* createStudentAgent(const std::string& teamName);
 
-int main() {
+int main(int argc, char* argv[]) {
 #ifdef _WIN32
     // Disable QuickEdit mode to prevent console click hangs
     HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
@@ -19,9 +19,14 @@ int main() {
 #endif
 
     std::string teamName;
-    std::cout << "Welcome to the Game Challenge!\n";
-    std::cout << "Enter your Team Name: ";
-    std::cin >> teamName;
+    if (argc > 1) {
+        teamName = argv[1];
+        std::cout << "Team Name provided via argument: " << teamName << "\n";
+    } else {
+        std::cout << "Welcome to the Game Challenge!\n";
+        std::cout << "Enter your Team Name: ";
+        std::cin >> teamName;
+    }
 
     Agent* agent = createStudentAgent(teamName);
     Client client("127.0.0.1", 54321, agent);

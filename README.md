@@ -1,26 +1,33 @@
-# Game Challenge — Programovací šablona pro studenty
+# Programovací šablona pro studenty
 
-Vítejte v programovací výzvě **Game Challenge**! Vaším úkolem je navrhnout a naimplementovat autonomního agenta (bota), který dokáže co nejrychleji projít bludištěm až do cíle, přičemž se musí vyrovnat s překážkami, omezeným zorným polem a ostatními protihráči.
+ Vaším úkolem je navrhnout a naimplementovat autonomního agenta (bota), který dokáže co nejrychleji projít bludištěm až do cíle, přičemž se musí vyrovnat s překážkami, omezeným zorným polem a ostatními protihráči.
 
 Projekt je napsaný v C++ a k vykreslování využívá knihovnu **SFML**.
 
 ---
 
-## 🎯 Cíl hry
+## 🎯 Cíl hry a pravidla
 
-1. **Hlavní cíl:** Dostat se k **cílovému portálu (Exit)**, který je zobrazen jako rotující zelený portál na mapě.
-2. **Kritérium vítězství:** Vítězem se stává tým, jehož agent dosáhne portálu v **nejkratším čase** (nejlepší čas se zaznamenává do tabulky na serveru napříč koly).
+1. **Hlavní cíl a bodování:** 
+   - Dostat se k **cílovému portálu (Exit)**, který je zobrazen jako rotující zelený portál na mapě.
+   - Kolo vyhrává hráč, který dosáhne portálu jako první. Tím kolo ukončí a získá pro svůj tým **10 bodů**.
+   - Body se ukládají do tabulky (Leaderboard) na serveru napříč všemi odehranými koly.
+2. **Spawnování (Začátek a oživení):**
+   - Všichni hráči se na začátku kola objevují v "safe zóně" (prázdná místnost 3x3 dlaždice v levém horním rohu bludiště).
+   - Pokud je agent eliminován zbraní, dostává penalizaci **3 sekundy**, během kterých nehraje, a následně se **respawnuje zpět do počáteční safe zóny**.
 3. **Interakce a boj:** 
-   - Hráči začínají s **0 náboji** a **100 HP** (životy).
-   - Zásah nepřátelskou střelou ubere **50 HP**. Agent tedy **přežije pouze 1 zásah**, 2. zásah jej eliminuje a respawnuje zpět na startovní pozici (což přináší výraznou časovou penalizaci).
-   - Munici (krabice s náboji) lze sbírat na mapě. Počet krabic s municí na mapě odpovídá počtu připojených hráčů.
+   - Hráči začínají s **0 náboji** a **100 HP**.
+   - Zásah střelou ubírá **50 HP** (agent přežije 1 zásah, druhý jej eliminuje).
+   - **Bodování boje:** Za eliminaci soupeře získává střelec **+2 body**. Eliminovaná oběť naopak **-2 body** ztratí.
+   - Na mapě je k dispozici munice (žluté krystaly). Sebrání přidá **5 nábojů**.
+   - Na mapě se v každý moment nachází **přesně tolik kusů munice, kolik je připojeno hráčů**. Po sebrání se munice ihned znovu objeví na jiném náhodném místě.
 
 ---
 
 ## ⚙️ Jak hra funguje
 
 - **Autoritativní UDP Server:** Server řídí celý stav hry, generuje bludiště a počítá fyziku. Klienti posílají své akce a přijímají stav hry.
-- **Omezené zorné pole (Fog of War):** Server posílá vašemu agentovi pouze informace o objektech, které jsou v jeho přímé viditelnosti (Line-of-Sight) do vzdálenosti maximálně **8 polí**. Vše ostatní je skryto ve tmě.
+- **Omezené zorné pole (Fog of War):** Server posílá vašemu agentovi pouze informace o objektech, které jsou v jeho přímé viditelnosti (Line-of-Sight). Vše, co je za překážkami, je skryto.
 - **Lobby a kola:** Hra začíná v režimu Lobby. Jakmile učitel na serveru stiskne klávesu **ENTER**, vygeneruje se bludiště a odstartuje se kolo. Po dosažení cíle jedním z hráčů kolo končí, zobrazí se výsledky a po 5 sekundách se hra vrátí zpět do Lobby.
 
 ---
@@ -69,7 +76,7 @@ Každý viditelný objekt v `state.entities` obsahuje:
 * `e.rotation` — Úhel natočení entity ve stupních.
 
 ### Typy entit (`EntityType`)
-* `EntityType::Wall` — Blok zdi (velikost dlaždice je 40x40 pixelů).
+* `EntityType::Wall` — Blok zdi (velikost dlaždice je 80x80 pixelů).
 * `EntityType::Player` — Ostatní nepřátelští hráči.
 * `EntityType::Ammo` — Krabice s municí.
 * `EntityType::Bullet` — Letící projektil.
