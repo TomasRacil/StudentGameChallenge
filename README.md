@@ -112,3 +112,35 @@ Copy-Item "build\_deps\sfml-build\lib\Release\*.dll" -Destination "build\client\
    *Po spuštění klienta zadejte do konzole název svého týmu.*
 
 Jakmile se všichni připojí, učitel stiskne **ENTER** na okně serveru a hra začíná!
+
+### 4. Povolení síťového portu (Firewall)
+Pokud spouštíte server pro lokální provoz (např. v učebni nebo lokální síti) a ostatní se k vám mají připojit, musíte na serverovém počítači povolit příchozí UDP komunikaci na portu **54321**.
+
+#### Windows
+Spusťte PowerShell jako administrátor a zadejte:
+```powershell
+New-NetFirewallRule -DisplayName "GameChallenge Server" -Direction Inbound -LocalPort 54321 -Protocol UDP -Action Allow
+```
+Případně přes klasický příkazový řádek (spuštěný jako administrátor):
+```cmd
+netsh advfirewall firewall add rule name="GameChallenge Server" dir=in action=allow protocol=UDP localport=54321
+```
+
+#### Linux
+V závislosti na nainstalovaném firewallu použijte jeden z následujících příkazů:
+
+* **UFW** (výchozí pro Ubuntu / Debian):
+  ```bash
+  sudo ufw allow 54321/udp
+  ```
+
+* **firewalld** (výchozí pro Fedora / CentOS / RHEL):
+  ```bash
+  sudo firewall-cmd --add-port=54321/udp --permanent
+  sudo firewall-cmd --reload
+  ```
+
+* **iptables** (univerzální):
+  ```bash
+  sudo iptables -A INPUT -p udp --dport 54321 -j ACCEPT
+  ```
