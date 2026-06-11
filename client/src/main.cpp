@@ -19,17 +19,30 @@ int main(int argc, char* argv[]) {
 #endif
 
     std::string teamName;
+    std::string serverIp = "127.0.0.1";
+
     if (argc > 1) {
         teamName = argv[1];
         std::cout << "Team Name provided via argument: " << teamName << "\n";
+        if (argc > 2) {
+            serverIp = argv[2];
+            std::cout << "Server IP provided via argument: " << serverIp << "\n";
+        }
     } else {
         std::cout << "Welcome to the Game Challenge!\n";
         std::cout << "Enter your Team Name: ";
-        std::cin >> teamName;
+        std::getline(std::cin, teamName);
+
+        std::cout << "Enter Server IP [default: 127.0.0.1]: ";
+        std::string inputIp;
+        std::getline(std::cin, inputIp);
+        if (!inputIp.empty()) {
+            serverIp = inputIp;
+        }
     }
 
     Agent* agent = createStudentAgent(teamName);
-    Client client("127.0.0.1", 54321, agent);
+    Client client(serverIp, 54321, agent);
     client.run();
     delete agent;
     return 0;
